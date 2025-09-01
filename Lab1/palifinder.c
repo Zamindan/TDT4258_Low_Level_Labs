@@ -2,11 +2,11 @@
 #include "stdio.h"
 #include "stdbool.h"
 
-char normalize_to_lower_case(char string){
-    if (string >= 'A' && string <= 'Z') {
-        return string + 32;
+char normalize_to_lower_case(char character){
+    if (character >= 'A' && character <= 'Z') {
+        return character + 32;
     }
-    return string;
+    return character;
 }
 
 int main(void)
