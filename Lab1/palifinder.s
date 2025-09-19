@@ -8,6 +8,13 @@ _end_string_loop:
 	add r1, r1, #1			// String address: Increment r1 by 1 (i++)
 	b _end_string_loop
 
+skip_left:
+	sub r1, r1, #1
+	b palindrome_loop
+skip_right:
+	add r0, r0, #1
+	b palindrome_loop
+
 _start:
 	ldr r0, =input		// r0 = address of input string (char* word = input)
 	mov r1, r0			// r1 = copy of r0 (r1 will walk through the string)
@@ -15,13 +22,31 @@ _start:
 	
 	
 _check_palindrome:
-	sub r1, #1		// Decrement r1 by 1 to get end of string and not null terminator
+	sub r1, r1, #1		// Decrement r1 by 1 to get end of string and not null terminator
 	
 	palindrome_loop:
 		ldrb r2, [r0]		// Load byte from r0 into r2, start of string
 		ldrb r3, [r1] 		// Load byte from r1 into r3, end of string
-		bl check_space
-		bl normalize_lower_case
+		check_space:
+		cmp r2, #32			// Compares r2 to space
+		beq skip_right
+		cmp r3, #32	
+		beq skip_left
+		normalize_lower_case:  // Checks if r2 or r3 are upper case
+		cmp r2, #'A'
+		blt check_end_string
+		cmp r2, #'Z'
+		bgt check_end_string
+		
+		add r2, r2, #32			// if r2 == upper case, make lower case
+	check_end_string:
+		cmp r3, #'A'
+		blt is_lower_case
+		cmp r3, #'Z'
+		bgt is_lower_case
+		
+		add r3, r3, #32 		// if r3 == upper case, make lower case
+		is_lower_case:
 		cmp r0, r1			// Compare r0 and r1 to know when to stop checking
 		bhs is_palindrome
 		
@@ -31,21 +56,6 @@ _check_palindrome:
 			sub r1, r1, #1
 			add r0, r0, #1
 			beq palindrome_loop
-		
-	check_space:
-		cmp r2, #32			// Compares r2 to space
-		bne check_space_r3
-		add r0, r0, #1		// if r2 == space, skip character
-		beq palindrome_loop
-		
-		check_space_r3:
-			cmp r3, #32		// Compares r3 to space
-			bne not_space
-			sub r1, r1, #1	// if r3 == space, skip character
-			beq palindrome_loop
-			
-		not_space:
-			bx lr
 	
 	check_wildcard: // if r2 or r3 has # or ?, move 1 to r4
 		mov r4, #0
@@ -61,23 +71,6 @@ _check_palindrome:
 		beq is_equal 		// Go back to palindrome_loop if r4 == 1
 		bne not_palindrome	// else not_palindrome
 		
-	normalize_lower_case:  // Checks if r2 or r3 are upper case
-		cmp r2, #'A'
-		blt check_end_string
-		cmp r2, #'Z'
-		bgt check_end_string
-		
-		add r2, #32			// if r2 == upper case, make lower case
-	check_end_string:
-		cmp r3, #'A'
-		blt is_lower_case
-		cmp r3, #'Z'
-		bgt is_lower_case
-		
-		add r3, #32 		// if r3 == upper case, make lower case
-		is_lower_case:
-			bx lr
-		
 	is_palindrome:
 		ldr r0, =led_offset // Load address of led_offset in r0 (*r0 = &led_offset)
 		ldr r0, [r0]		// Point to address stored at value of led_offset(r0 = (uint32_t *) *r0)
@@ -89,7 +82,7 @@ _check_palindrome:
 		ldr r1, =palindrome_string	 // Load address of palindrome_string in r1
 		palindrome_to_uart_loop:	// Loop to write to UART
 			ldrb r2, [r1]	// Load 1 byte from r1 into r2
-			add r1, #1		// Move pointer to next byte of r1
+			add r1, r1, #1		// Move pointer to next byte of r1
 			cmp r2, #0		// Check for null terminator in r2
 			beq _exit		// if null exit
 			str r2, [r0]	// Store byte in r2 in first byte of r0 to write to uart
@@ -105,7 +98,7 @@ _check_palindrome:
 		ldr r1, =not_palindrome_string
 		not_palindrome_to_uart_loop:
 			ldrb r2, [r1]
-			add r1, #1
+			add r1, r1, #1
 			cmp r2, #0
 			beq _exit
 			str r2, [r0]
