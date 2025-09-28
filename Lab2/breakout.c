@@ -7,6 +7,7 @@ unsigned int __attribute__((used)) green = 0x00000F0F;
 unsigned int __attribute__((used)) blue = 0x000000FF;
 unsigned int __attribute__((used)) white = 0x0000FFFF;
 unsigned int __attribute__((used)) black = 0x0;
+unsigned int __attribute__((used)) VGAaddressMax = 0xC8040000;
 
 // Don't change the name of this variables
 #define NCOLS 10 // <- Supported value range: [1,18]
@@ -56,6 +57,7 @@ GameState currentState = Stopped;
 void SetPixel(unsigned int x_coord, unsigned int y_coord, unsigned int color);
 int ReadUart();
 void WriteUart(char c);
+void ClearScreen();
 
 /***
  * Now follow the assembly implementations
@@ -65,7 +67,17 @@ void WriteUart(char c);
 asm("ClearScreen: \n\t"
     "    PUSH {LR} \n\t"
     "    PUSH {R4, R5} \n\t"
-    // TODO: Add ClearScreen implementation in assembly here
+    "    LDR R0, =VGAaddress \n\t"
+    "    LDR R0, [R0] \n\t"
+    "    LDR R1, =white \n\t"
+    "    LDR R1, [R1] \n\t"
+    "    LDR R2, =VGAaddressMax \n\t"
+    "    LDR R2, [R2] \n\t"
+    "    ClearScreenLoop: \n\t"
+    "       STRH R1, [R0] \n\t" // Store R1 into address pointed to by R0
+    "       ADD R0, R0, #0x2 \n\t"
+    "       CMP R0, R2 \n\t"
+    "       BNE ClearScreenLoop \n\t"
     "    POP {R4,R5}\n\t"
     "    POP {LR} \n\t"
     "    BX LR");
@@ -86,6 +98,10 @@ asm("ReadUart:\n\t"
     "BX LR");
 
 // TODO: Add the WriteUart assembly procedure here that respects the WriteUart C declaration on line 46
+asm("WriteUart: \n\t"
+    "LDR R1, =0xFF201000 \n\t"
+    "STRB R0, [R1] \n\t"
+);
 
 // TODO: Implement the C functions below
 // Don't modify any function header
@@ -185,13 +201,16 @@ void reset()
 
 void wait_for_start()
 {
-    // TODO: Implement waiting behaviour until the user presses either w/s
+    char user_input;
+    while(1){
+        user_input = (char)ReadUart();
+        if (user_input == 'w'){break;}
+    }
 }
 
 int main(int argc, char *argv[])
 {
     ClearScreen();
-
     // HINT: This loop allows the user to restart the game after loosing/winning the previous game
     while (1)
     {
