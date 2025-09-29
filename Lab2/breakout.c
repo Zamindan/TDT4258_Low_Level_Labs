@@ -11,8 +11,9 @@ unsigned int __attribute__((used)) VGAaddressMax = 0xC8040000;
 
 // Don't change the name of this variables
 #define NCOLS 10 // <- Supported value range: [1,18]
-#define NROWS 14 // <- This variable might change.
+#define NROWS 16 // <- This variable might change.
 #define TILE_SIZE 15 // <- Tile size, might change.
+
 
 char *won = "You Won";       // DON'T TOUCH THIS - keep the string as is
 char *lost = "You Lost";     // DON'T TOUCH THIS - keep the string as is
@@ -25,6 +26,22 @@ unsigned char tiles[NROWS][NCOLS] __attribute__((used)) = { 0 }; // DON'T TOUCH 
 /***
  * TODO: Define your variables below this comment
  */
+#define BAR_SIZE_Y 45
+#define BAR_SIZE_X 7
+int bar_pos_y = 0;
+
+#define BALL_SIZE 7
+int ball_pos_x = 160;
+int ball_pos_y = 80;
+enum ball_vel_angle_t{
+    ball_angle_0,
+    ball_angle_45,
+    ball_angle_135,
+    ball_angle_180,
+    ball_angle_225,
+    ball_angle_315
+};
+enum ball_vel_angle_t ball_vel_angle = ball_angle_180;
 
 /***
  * You might use and modify the struct/enum definitions below this comment
@@ -111,14 +128,88 @@ void draw_block(unsigned int x, unsigned int y, unsigned int width, unsigned int
 
 void draw_bar(unsigned int y)
 {
+    for (int i = 0; i<=BAR_SIZE_X; i++){
+        for (int e = y; e<=(BAR_SIZE_Y + y); e++){
+            if ((i == 0) | (e == 0) | (i == BAR_SIZE_X) | (e == BAR_SIZE_Y + y)){
+                SetPixel(i, e, white);
+            }
+            else{
+                SetPixel(i, e, black);
+            }
+        }
+    }
+    return;
 }
 
-void draw_ball()
+void draw_ball(unsigned x, unsigned y)
 {
+    for (int i = x; i <= BALL_SIZE + x; i++){
+        for (int e = y; e <= BALL_SIZE + y; e++){
+            if((i == 0) | (e == 0) | (i == BALL_SIZE + x) | (e == BALL_SIZE + y)){
+                SetPixel(i, e, white);
+            }
+            else{
+                SetPixel(i, e, black);
+            }
+        }
+    }
 }
 
 void draw_playing_field()
 {
+    unsigned int colour = 0;
+    for (int i = 0; i < NCOLS; i++){
+        for (int e = 0; e < NROWS; e++){
+            if(e % 2){
+                if (i % 2){
+                    colour = red;
+                }
+                else{
+                    colour = green;
+                }
+            }
+            else{
+                if (i % 2){
+                    colour = green;
+                }
+                else{
+                    colour = red;
+                }
+            }
+            for (int k = 0; k < TILE_SIZE; k++){
+                for (int l = 0; l < TILE_SIZE; l++){
+                    SetPixel(k + i*TILE_SIZE + NCOLS*TILE_SIZE, l + e*TILE_SIZE, colour);
+                }
+            }
+        }
+    }
+}
+
+void ball_position_update(){
+    switch (ball_vel_angle)
+    {
+    case ball_angle_0:
+        ball_pos_x += 1;
+        break;
+    case ball_angle_45:
+        ball_pos_x += 1;
+        ball_pos_y += 1;
+        break;
+    case ball_angle_135:
+        ball_pos_x -= 1;
+        ball_pos_y += 1;
+        break;
+    case ball_angle_180:
+        ball_pos_x -= 1;
+        break;
+    case ball_angle_225:
+        ball_pos_x -= 1;
+        ball_pos_y -= 1;
+        break;
+    case ball_angle_315:
+        ball_pos_x += 1;
+        ball_pos_y -= 1;
+    }
 }
 
 void update_game_state()
@@ -128,25 +219,48 @@ void update_game_state()
         return;
     }
 
-    // TODO: Check: game won? game lost?
+    if (ball_pos_x >= 320){
+        currentState = Won;
+    }
+    else if (ball_pos_x <= 7){
+        currentState = Lost;
+    }
 
-    // TODO: Update balls position and direction
-
+    ball_position_update();
     // TODO: Hit Check with Blocks
     // HINT: try to only do this check when we potentially have a hit, as it is relatively expensive and can slow down game play a lot
 }
 
 void update_bar_state()
 {
+    unsigned long long uart_out = ReadUart();
     int remaining = 0;
+    do{
+        uart_out = ReadUart();
+        remaining = (uart_out & 0xFF0000) >> 4;
+        if (!(uart_out & 0x8000)){
+            return;
+        }
+        char user_input = (char)(uart_out & 0xFF);
+        if (user_input == 'w'){
+            bar_pos_y += 5;
+        }
+        else if (user_input == 's'){
+            bar_pos_y -= 5;
+        }
+    } while(remaining > 0);
     // TODO: Read all chars in the UART Buffer and apply the respective bar position updates
     // HINT: w == 77, s == 73
     // HINT Format: 0x00 'Remaining Chars':2 'Ready 0x80':2 'Char 0xXX':2, sample: 0x00018077 (1 remaining character, buffer is ready, current character is 'w')
 }
 
-void write(char *str)
+void write(const char* str)
 {
     // TODO: Use WriteUart to write the string to JTAG UART
+    while (*str != '\0'){
+        WriteUart(*(char*)str);
+        str += 1;
+    }
 }
 
 void play()
@@ -162,8 +276,8 @@ void play()
             break;
         }
         draw_playing_field();
-        draw_ball();
-        draw_bar(120); // TODO: replace the constant value with the current position of the bar
+        draw_ball(ball_pos_x, ball_pos_y);
+        draw_bar(bar_pos_y); // TODO: replace the constant value with the current position of the bar
     }
     if (currentState == Won)
     {
@@ -201,11 +315,21 @@ void reset()
 
 void wait_for_start()
 {
+    unsigned long long uart_out;
+    int remaining = 0;
     char user_input;
-    while(1){
-        user_input = (char)ReadUart();
-        if (user_input == 'w'){break;}
-    }
+    write("Press W to start \n");
+    do{
+        uart_out = ReadUart();
+        remaining = (uart_out & 0xFF0000) >> 4;
+        if (!(uart_out & 0x8000)){
+            return;
+        }
+        user_input = (char)(uart_out & 0xFF);
+        if (user_input == 'w'){
+            currentState = Running;
+        }
+    }while(remaining > 0);
 }
 
 int main(int argc, char *argv[])
