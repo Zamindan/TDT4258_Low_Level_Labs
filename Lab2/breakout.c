@@ -27,8 +27,11 @@ unsigned char tiles[NROWS][NCOLS] __attribute__((used)) = { 0 }; // DON'T TOUCH 
  * TODO: Define your variables below this comment
  */
 #define BAR_SIZE_Y 45
+#define BAR_BLOCK_SIZE_Y 15
 #define BAR_SIZE_X 7
 int bar_pos_y = 0;
+int bar_position_counter = 0;
+int bar_tiles[NROWS] = {0};
 
 #define BALL_SIZE 7
 int ball_pos_x = 160;
@@ -128,24 +131,39 @@ void draw_block(unsigned int x, unsigned int y, unsigned int width, unsigned int
 
 void draw_bar(unsigned int y)
 {
-    for (int i = 0; i<=BAR_SIZE_X; i++){
-        for (int e = y; e<=(BAR_SIZE_Y + y); e++){
-            if ((i == 0) | (e == 0) | (i == BAR_SIZE_X) | (e == BAR_SIZE_Y + y)){
-                SetPixel(i, e, white);
+    int counter = 0;
+    for (int k = 0; k <= NROWS; k++){
+        if (bar_tiles[k] == 1){
+            for (int i = 0; i<=BAR_SIZE_X; i++){
+                for (int e = y + counter*BAR_BLOCK_SIZE_Y; e <= BAR_BLOCK_SIZE_Y + k*BAR_BLOCK_SIZE_Y; e++){
+                    if (counter == 0 || counter == 2){
+                        SetPixel(i, e, red);
+                    }
+                    else{
+                        SetPixel(i, e, black);
+                    }
+                }
             }
-            else{
-                SetPixel(i, e, black);
+            counter++;
+        }
+        else {
+            for (int i = 0; i<=BAR_SIZE_X; i++){
+                for (int e = k*BAR_BLOCK_SIZE_Y; e < y; e++){
+                    SetPixel(i, e, white);
+                }
+                for (int e = y + 3*BAR_BLOCK_SIZE_Y; e <= height; e++){
+                    SetPixel(i, e, white);
+                }
             }
         }
     }
-    return;
 }
 
 void draw_ball(unsigned x, unsigned y)
 {
     for (int i = x; i <= BALL_SIZE + x; i++){
         for (int e = y; e <= BALL_SIZE + y; e++){
-            if((i == 0) | (e == 0) | (i == BALL_SIZE + x) | (e == BALL_SIZE + y)){
+            if((i == 0) || (e == 0) || (i == BALL_SIZE + x) || (e == BALL_SIZE + y)){
                 SetPixel(i, e, white);
             }
             else{
@@ -176,9 +194,18 @@ void draw_playing_field()
                     colour = red;
                 }
             }
-            for (int k = 0; k < TILE_SIZE; k++){
-                for (int l = 0; l < TILE_SIZE; l++){
-                    SetPixel(k + i*TILE_SIZE + NCOLS*TILE_SIZE, l + e*TILE_SIZE, colour);
+            if (tiles[i][e] == 1){
+                for (int k = 0; k < TILE_SIZE; k++){
+                    for (int l = 0; l < TILE_SIZE; l++){
+                        SetPixel(k + i*TILE_SIZE + NCOLS*TILE_SIZE, l + e*TILE_SIZE, colour);
+                    }
+                }
+            }
+            else{
+                for (int k = 0; k < TILE_SIZE; k++){
+                    for (int l = 0; l < TILE_SIZE; l++){
+                        SetPixel(k + i*TILE_SIZE + NCOLS*TILE_SIZE, l + e*TILE_SIZE, white);
+                    }
                 }
             }
         }
@@ -233,22 +260,35 @@ void update_game_state()
 
 void update_bar_state()
 {
-    unsigned long long uart_out = ReadUart();
+    unsigned long long uart_out;
     int remaining = 0;
+    char user_input;
     do{
         uart_out = ReadUart();
         remaining = (uart_out & 0xFF0000) >> 4;
-        if (!(uart_out & 0x8000)){
-            return;
+        user_input = (char)(uart_out & 0xFF);
+        if (uart_out & 0x8000){
+            if ((user_input == 's') && (bar_pos_y < 195)){
+                bar_pos_y += 15;
+                bar_position_counter += 1;
+            }
+            else if ((user_input == 'w') && (bar_pos_y > 0)){
+                bar_pos_y -= 15;
+                bar_position_counter -= 1;
+            }
         }
-        char user_input = (char)(uart_out & 0xFF);
-        if (user_input == 'w'){
-            bar_pos_y += 5;
+        else {
+            uart_out = 0;
         }
-        else if (user_input == 's'){
-            bar_pos_y -= 5;
+        for (int i = 0; i <= NROWS; i++){
+            if (i == bar_position_counter || i == bar_position_counter + 1 || i == bar_position_counter + 2){
+                bar_tiles[i] = 1;
+            }
+            else{
+                bar_tiles[i] = 0;
+            }
         }
-    } while(remaining > 0);
+    }while(remaining > 0);
     // TODO: Read all chars in the UART Buffer and apply the respective bar position updates
     // HINT: w == 77, s == 73
     // HINT Format: 0x00 'Remaining Chars':2 'Ready 0x80':2 'Char 0xXX':2, sample: 0x00018077 (1 remaining character, buffer is ready, current character is 'w')
@@ -267,6 +307,11 @@ void play()
 {
     ClearScreen();
     // HINT: This is the main game loop
+    for (int i = 0; i < NROWS; i++){
+        for (int k = 0; k < NCOLS; k++){
+            tiles[i][k] = 1;
+        }
+    }
     while (1)
     {
         update_game_state();
@@ -282,10 +327,12 @@ void play()
     if (currentState == Won)
     {
         write(won);
+        while(1);
     }
     else if (currentState == Lost)
     {
         write(lost);
+        while(1);
     }
     else if (currentState == Exit)
     {
@@ -322,14 +369,12 @@ void wait_for_start()
     do{
         uart_out = ReadUart();
         remaining = (uart_out & 0xFF0000) >> 4;
-        if (!(uart_out & 0x8000)){
-            return;
-        }
         user_input = (char)(uart_out & 0xFF);
         if (user_input == 'w'){
             currentState = Running;
+            break;
         }
-    }while(remaining > 0);
+    }while(1);
 }
 
 int main(int argc, char *argv[])
