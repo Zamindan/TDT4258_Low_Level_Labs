@@ -26,17 +26,23 @@ unsigned char tiles[NROWS][NCOLS] __attribute__((used)) = { 0 }; // DON'T TOUCH 
 /***
  * TODO: Define your variables below this comment
  */
+#define GAME_SLOWDOWN_COUNTER 50000
+
 #define BAR_SIZE_Y 45
 #define BAR_BLOCK_SIZE_Y 15
 #define BAR_SIZE_X 7
+#define BAR_OFFSET_X 5
 int bar_pos_y = 0;
 int bar_position_counter = 0;
 int bar_tiles[NROWS] = {0};
+int update_bar = 1;
+
+#define TILE_X_OFFSET 170
 
 #define BALL_SIZE 7
 int ball_pos_x = 160;
 int ball_pos_y = 80;
-enum ball_vel_angle_t{
+enum ball_vel_angle{
     ball_angle_0,
     ball_angle_45,
     ball_angle_135,
@@ -44,7 +50,19 @@ enum ball_vel_angle_t{
     ball_angle_225,
     ball_angle_315
 };
-enum ball_vel_angle_t ball_vel_angle = ball_angle_180;
+enum ball_vel_angle ball_vel_angle = ball_angle_180;
+int ball_collision = 0;
+int ball_sprite[9][9] = {{0, 0, 0, 0, 0, 0, 0, 0, 0},
+                         {0, 0, 0, 0, 1, 0, 0, 0, 0}, 
+                         {0, 0, 0, 1, 1, 1, 0, 0, 0}, 
+                         {0, 0, 1, 1, 1, 1, 1, 0, 0}, 
+                         {0, 1, 1, 1, 1, 1, 1, 1, 0}, 
+                         {0, 0, 1, 1, 1, 1, 1, 0, 0}, 
+                         {0, 0, 0, 1, 1, 1, 0, 0, 0}, 
+                         {0, 0, 0, 0, 1, 0, 0, 0, 0},
+                         {0, 0, 0, 0, 0, 0, 0, 0, 0}};
+
+int playing_field_update = 1;
 
 /***
  * You might use and modify the struct/enum definitions below this comment
@@ -131,43 +149,46 @@ void draw_block(unsigned int x, unsigned int y, unsigned int width, unsigned int
 
 void draw_bar(unsigned int y)
 {
-    int counter = 0;
-    for (int k = 0; k <= NROWS; k++){
-        if (bar_tiles[k] == 1){
-            for (int i = 0; i<=BAR_SIZE_X; i++){
-                for (int e = y + counter*BAR_BLOCK_SIZE_Y; e <= BAR_BLOCK_SIZE_Y + k*BAR_BLOCK_SIZE_Y; e++){
-                    if (counter == 0 || counter == 2){
-                        SetPixel(i, e, red);
-                    }
-                    else{
-                        SetPixel(i, e, black);
+    if (update_bar == 1){
+        int counter = 0;
+        for (int k = 0; k <= NROWS; k++){
+            if (bar_tiles[k] == 1){
+                for (int i = BAR_OFFSET_X; i<=BAR_SIZE_X + BAR_OFFSET_X; i++){
+                    for (int e = y + counter*BAR_BLOCK_SIZE_Y; e <= BAR_BLOCK_SIZE_Y + k*BAR_BLOCK_SIZE_Y; e++){
+                        if (counter == 0 || counter == 2){
+                            SetPixel(i, e, blue);
+                        }
+                        else{
+                            SetPixel(i, e, black);
+                        }
                     }
                 }
+                counter++;
             }
-            counter++;
-        }
-        else {
-            for (int i = 0; i<=BAR_SIZE_X; i++){
-                for (int e = k*BAR_BLOCK_SIZE_Y; e < y; e++){
-                    SetPixel(i, e, white);
-                }
-                for (int e = y + 3*BAR_BLOCK_SIZE_Y; e <= height; e++){
-                    SetPixel(i, e, white);
+            else {
+                for (int i = BAR_OFFSET_X; i<=BAR_SIZE_X + BAR_OFFSET_X; i++){
+                    for (int e = k*BAR_BLOCK_SIZE_Y; e < y; e++){
+                        SetPixel(i, e, white);
+                    }
+                    for (int e = y + 3*BAR_BLOCK_SIZE_Y; e <= height; e++){
+                        SetPixel(i, e, white);
+                    }
                 }
             }
         }
     }
+    update_bar = 0;
 }
 
 void draw_ball(unsigned x, unsigned y)
 {
-    for (int i = x; i <= BALL_SIZE + x; i++){
-        for (int e = y; e <= BALL_SIZE + y; e++){
-            if((i == 0) || (e == 0) || (i == BALL_SIZE + x) || (e == BALL_SIZE + y)){
-                SetPixel(i, e, white);
+    for (int i = 0; i < BALL_SIZE + 2; i++){
+        for (int e = 0; e < BALL_SIZE + 2; e++){
+            if (ball_sprite[i][e] == 1){
+                SetPixel(i + ball_pos_x - 4, e + ball_pos_y - 4, black);
             }
-            else{
-                SetPixel(i, e, black);
+            else if (ball_sprite[i][e] == 0){
+                SetPixel(i + ball_pos_x - 4, e + ball_pos_y - 4, white);
             }
         }
     }
@@ -175,41 +196,44 @@ void draw_ball(unsigned x, unsigned y)
 
 void draw_playing_field()
 {
+    if (playing_field_update == 1){
     unsigned int colour = 0;
-    for (int i = 0; i < NCOLS; i++){
-        for (int e = 0; e < NROWS; e++){
-            if(e % 2){
-                if (i % 2){
-                    colour = red;
-                }
-                else{
-                    colour = green;
-                }
-            }
-            else{
-                if (i % 2){
-                    colour = green;
-                }
-                else{
-                    colour = red;
-                }
-            }
-            if (tiles[i][e] == 1){
-                for (int k = 0; k < TILE_SIZE; k++){
-                    for (int l = 0; l < TILE_SIZE; l++){
-                        SetPixel(k + i*TILE_SIZE + NCOLS*TILE_SIZE, l + e*TILE_SIZE, colour);
+        for (int i = 0; i < NROWS; i++){
+            for (int e = 0; e < NCOLS; e++){
+                if(i % 2){
+                    if (e % 2){
+                        colour = red;
+                    }
+                    else{
+                        colour = green;
                     }
                 }
-            }
-            else{
-                for (int k = 0; k < TILE_SIZE; k++){
-                    for (int l = 0; l < TILE_SIZE; l++){
-                        SetPixel(k + i*TILE_SIZE + NCOLS*TILE_SIZE, l + e*TILE_SIZE, white);
+                else{
+                    if (e % 2){
+                        colour = green;
+                    }
+                    else{
+                        colour = red;
+                    }
+                }
+                if (tiles[i][e] == 1){
+                    for (int k = 0; k < TILE_SIZE; k++){
+                        for (int l = 0; l < TILE_SIZE; l++){
+                            SetPixel(k + e*TILE_SIZE + TILE_X_OFFSET, l + i*TILE_SIZE, colour);
+                        }
+                    }
+                }
+                else{
+                    for (int k = 0; k < TILE_SIZE; k++){
+                        for (int l = 0; l < TILE_SIZE; l++){
+                            SetPixel(k + e*TILE_SIZE + TILE_X_OFFSET, l + i*TILE_SIZE, white);
+                        }
                     }
                 }
             }
         }
-    }
+    } 
+    playing_field_update = 0;  
 }
 
 void ball_position_update(){
@@ -220,22 +244,141 @@ void ball_position_update(){
         break;
     case ball_angle_45:
         ball_pos_x += 1;
-        ball_pos_y += 1;
+        ball_pos_y -= 1;
         break;
     case ball_angle_135:
         ball_pos_x -= 1;
-        ball_pos_y += 1;
+        ball_pos_y -= 1;
         break;
     case ball_angle_180:
         ball_pos_x -= 1;
         break;
     case ball_angle_225:
         ball_pos_x -= 1;
-        ball_pos_y -= 1;
+        ball_pos_y += 1;
         break;
     case ball_angle_315:
         ball_pos_x += 1;
-        ball_pos_y -= 1;
+        ball_pos_y += 1;
+        break;
+    }
+}
+
+void check_bar_ball_collision(){
+    switch (ball_vel_angle)
+    {
+    case ball_angle_180:
+        if (ball_pos_x - 4 <= BAR_SIZE_X + BAR_OFFSET_X){
+            for (int i = 0; i < NROWS; i++){
+                if ((bar_tiles[i] == 1) && (bar_tiles[i + 1] == 1) && (bar_tiles[i + 2] == 1)){
+                    if ((ball_pos_y >= i*BAR_BLOCK_SIZE_Y) && (ball_pos_y < i*BAR_BLOCK_SIZE_Y + BAR_BLOCK_SIZE_Y)){
+                        ball_vel_angle = ball_angle_45;
+                    }
+                    else if ((ball_pos_y >= i*BAR_BLOCK_SIZE_Y + BAR_BLOCK_SIZE_Y) && (ball_pos_y < i*BAR_BLOCK_SIZE_Y + 2*BAR_BLOCK_SIZE_Y)){
+                        ball_vel_angle = ball_angle_0;
+                    }
+                    else if ((ball_pos_y >= i*BAR_BLOCK_SIZE_Y +  2*BAR_BLOCK_SIZE_Y) && (ball_pos_y < i*BAR_BLOCK_SIZE_Y + 3*BAR_BLOCK_SIZE_Y)){
+                        ball_vel_angle = ball_angle_315;
+                    }
+                }
+            }
+        }
+        break;
+    case ball_angle_135:
+        if (ball_pos_x - 4 <= BAR_SIZE_X + BAR_OFFSET_X){
+            for (int i = 0; i < NROWS; i++){
+                if ((bar_tiles[i] == 1) && (bar_tiles[i + 1] == 1) && (bar_tiles[i + 2] == 1)){
+                    if ((ball_pos_y >= i*BAR_BLOCK_SIZE_Y) && (ball_pos_y < i*BAR_BLOCK_SIZE_Y + BAR_BLOCK_SIZE_Y)){
+                        ball_vel_angle = ball_angle_45;
+                    }
+                    else if ((ball_pos_y >= i*BAR_BLOCK_SIZE_Y + BAR_BLOCK_SIZE_Y) && (ball_pos_y < i*BAR_BLOCK_SIZE_Y + 2*BAR_BLOCK_SIZE_Y)){
+                        ball_vel_angle = ball_angle_0;
+                    }
+                    else if ((ball_pos_y >= i*BAR_BLOCK_SIZE_Y +  2*BAR_BLOCK_SIZE_Y) && (ball_pos_y < i*BAR_BLOCK_SIZE_Y + 3*BAR_BLOCK_SIZE_Y)){
+                        ball_vel_angle = ball_angle_45;
+                    }
+                }
+            }
+        }
+        break;
+    case ball_angle_225:
+        if (ball_pos_x - 4 <= BAR_SIZE_X + BAR_OFFSET_X){
+            for (int i = 0; i < NROWS; i++){
+                if ((bar_tiles[i] == 1) && (bar_tiles[i + 1] == 1) && (bar_tiles[i + 2] == 1)){
+                    if ((ball_pos_y >= i*BAR_BLOCK_SIZE_Y) && (ball_pos_y < i*BAR_BLOCK_SIZE_Y + BAR_BLOCK_SIZE_Y)){
+                        ball_vel_angle = ball_angle_315;
+                    }
+                    else if ((ball_pos_y >= i*BAR_BLOCK_SIZE_Y + BAR_BLOCK_SIZE_Y) && (ball_pos_y < i*BAR_BLOCK_SIZE_Y + 2*BAR_BLOCK_SIZE_Y)){
+                        ball_vel_angle = ball_angle_0;
+                    }
+                    else if ((ball_pos_y >= i*BAR_BLOCK_SIZE_Y +  2*BAR_BLOCK_SIZE_Y) && (ball_pos_y < i*BAR_BLOCK_SIZE_Y + 3*BAR_BLOCK_SIZE_Y)){
+                        ball_vel_angle = ball_angle_315;
+                    }
+                }
+            }
+        }
+        break;
+    }
+    
+}
+
+void check_edge_collision(){
+    if ((ball_pos_y - 4 == 0) && (ball_vel_angle == ball_angle_45)){
+        ball_vel_angle = ball_angle_315;
+    }
+    else if ((ball_pos_y - 4 == 0) && (ball_vel_angle == ball_angle_135)){
+        ball_vel_angle = ball_angle_225;
+    }
+    else if ((ball_pos_y + 4 == 240-BALL_SIZE) && (ball_vel_angle == ball_angle_315)){
+        ball_vel_angle = ball_angle_45;
+    }
+    else if ((ball_pos_y + 4 == 240-BALL_SIZE) && (ball_vel_angle == ball_angle_225)){
+        ball_vel_angle = ball_angle_135;
+    }
+}
+
+void tile_column_check(int column){
+    if (ball_pos_x == ((170 + column*TILE_SIZE)-4)){
+        for (int i = 0; i < NROWS; i++){
+            if ((ball_pos_y >= i*TILE_SIZE) && (ball_pos_y <= i*TILE_SIZE + TILE_SIZE) && (tiles[i][column] == 1)){
+                tiles[i][column] = 0;
+                playing_field_update = 1;
+                ball_collision = 1;
+            }
+        }
+    }
+}
+void check_tile_collision(){
+    tile_column_check(0);
+    tile_column_check(1);
+    tile_column_check(2);
+    tile_column_check(3);
+    tile_column_check(4);
+    tile_column_check(5);
+    tile_column_check(6);
+    tile_column_check(7);
+    tile_column_check(8);
+    tile_column_check(9);
+    
+    if (ball_collision == 1){
+        switch (ball_vel_angle)
+        {
+        case ball_angle_45:
+            ball_vel_angle = ball_angle_135;
+            ball_collision = 0;
+            break;
+        
+        case ball_angle_315:
+            ball_vel_angle = ball_angle_225;
+            ball_collision = 0;
+            break;
+
+        case ball_angle_0:
+            ball_vel_angle = ball_angle_180;
+            ball_collision = 0;
+            break;
+        }
+
     }
 }
 
@@ -254,6 +397,9 @@ void update_game_state()
     }
 
     ball_position_update();
+    check_bar_ball_collision();
+    check_edge_collision();
+    check_tile_collision();
     // TODO: Hit Check with Blocks
     // HINT: try to only do this check when we potentially have a hit, as it is relatively expensive and can slow down game play a lot
 }
@@ -271,16 +417,18 @@ void update_bar_state()
             if ((user_input == 's') && (bar_pos_y < 195)){
                 bar_pos_y += 15;
                 bar_position_counter += 1;
+                update_bar = 1;
             }
             else if ((user_input == 'w') && (bar_pos_y > 0)){
                 bar_pos_y -= 15;
                 bar_position_counter -= 1;
+                update_bar = 1;
             }
         }
         else {
             uart_out = 0;
         }
-        for (int i = 0; i <= NROWS; i++){
+        for (int i = 0; i < NROWS; i++){
             if (i == bar_position_counter || i == bar_position_counter + 1 || i == bar_position_counter + 2){
                 bar_tiles[i] = 1;
             }
@@ -296,7 +444,6 @@ void update_bar_state()
 
 void write(const char* str)
 {
-    // TODO: Use WriteUart to write the string to JTAG UART
     while (*str != '\0'){
         WriteUart(*(char*)str);
         str += 1;
@@ -323,6 +470,7 @@ void play()
         draw_playing_field();
         draw_ball(ball_pos_x, ball_pos_y);
         draw_bar(bar_pos_y); // TODO: replace the constant value with the current position of the bar
+        for (int i = 0; i < GAME_SLOWDOWN_COUNTER; i++);
     }
     if (currentState == Won)
     {
