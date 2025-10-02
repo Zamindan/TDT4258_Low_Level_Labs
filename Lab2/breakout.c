@@ -41,8 +41,8 @@ int update_bar = 1;
 
 #define BALL_RADIUS 4
 #define BALL_SIZE 7
-int ball_pos_x = 130;
-int ball_pos_y = 100;
+int ball_pos_x = 20;
+int ball_pos_y = 10;
 enum ball_vel_angle{
     ball_angle_0,
     ball_angle_45,
@@ -557,12 +557,10 @@ void reset()
 {
     // Hint: This is draining the UART buffer
     unsigned long long uart_out;
-    int remaining = 0;
     char user_input;
     write("Press w to play again or press s to exit\n");
     do{
         uart_out = ReadUart();
-        remaining = (uart_out & 0xFF0000) >> 4;
         user_input = (char)(uart_out & 0xFF);
         if (uart_out & 0x8000){
             if(user_input == 'w'){
@@ -575,7 +573,7 @@ void reset()
         else {
             uart_out = 0;
         }
-    }while(currentState = Stopped);
+    }while(currentState == Stopped);
 
     // TODO: You might want to reset other state in here
 }
@@ -583,12 +581,10 @@ void reset()
 void wait_for_start()
 {
     unsigned long long uart_out;
-    int remaining = 0;
     char user_input;
     write("Press W to start \n");
     do{
         uart_out = ReadUart();
-        remaining = (uart_out & 0xFF0000) >> 4;
         user_input = (char)(uart_out & 0xFF);
         if (user_input == 'w'){
             currentState = Running;
