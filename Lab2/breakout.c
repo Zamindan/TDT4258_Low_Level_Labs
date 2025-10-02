@@ -26,6 +26,8 @@ unsigned char tiles[NROWS][NCOLS] __attribute__((used)) = { 0 }; // DON'T TOUCH 
 /***
  * TODO: Define your variables below this comment
  */
+#define TILE_X_OFFSET 320 - NCOLS*TILE_SIZE
+
 #define GAME_SLOWDOWN_COUNTER 50000
 
 #define BAR_SIZE_Y 45
@@ -37,21 +39,25 @@ int bar_position_counter = 0;
 int bar_tiles[NROWS] = {0};
 int update_bar = 1;
 
-#define TILE_X_OFFSET 170
-
+#define BALL_RADIUS 4
 #define BALL_SIZE 7
-int ball_pos_x = 160;
-int ball_pos_y = 80;
+int ball_pos_x = 130;
+int ball_pos_y = 100;
 enum ball_vel_angle{
     ball_angle_0,
     ball_angle_45,
+    ball_angle_90,
     ball_angle_135,
     ball_angle_180,
     ball_angle_225,
+    ball_angle_270,
     ball_angle_315
 };
-enum ball_vel_angle ball_vel_angle = ball_angle_180;
-int ball_collision = 0;
+enum ball_vel_angle ball_vel_angle = ball_angle_315;
+int ball_collision = 0;             // To see if ball has collided
+int ball_tile_top_collision = 0;   // To see if ball has collided with top side of a tile
+int ball_tile_bottom_collision = 0;// To see if ball has collided with bottom side of a tile
+int ball_tile_right_collision = 0; // To see if the ball has collided with the right side of a tile
 int ball_sprite[9][9] = {{0, 0, 0, 0, 0, 0, 0, 0, 0},
                          {0, 0, 0, 0, 1, 0, 0, 0, 0}, 
                          {0, 0, 0, 1, 1, 1, 0, 0, 0}, 
@@ -232,7 +238,7 @@ void draw_playing_field()
                 }
             }
         }
-    } 
+    }
     playing_field_update = 0;  
 }
 
@@ -240,26 +246,32 @@ void ball_position_update(){
     switch (ball_vel_angle)
     {
     case ball_angle_0:
-        ball_pos_x += 1;
+        ball_pos_y -= 1;
         break;
     case ball_angle_45:
         ball_pos_x += 1;
         ball_pos_y -= 1;
         break;
+    case ball_angle_90:
+        ball_pos_x += 1;
+        break;
     case ball_angle_135:
-        ball_pos_x -= 1;
-        ball_pos_y -= 1;
+        ball_pos_x += 1;
+        ball_pos_y += 1;
         break;
     case ball_angle_180:
-        ball_pos_x -= 1;
+        ball_pos_y += 1;
         break;
     case ball_angle_225:
         ball_pos_x -= 1;
         ball_pos_y += 1;
         break;
+    case ball_angle_270:
+        ball_pos_x -= 1;
+        break;
     case ball_angle_315:
-        ball_pos_x += 1;
-        ball_pos_y += 1;
+        ball_pos_x -= 1;
+        ball_pos_y -= 1;
         break;
     }
 }
@@ -267,52 +279,52 @@ void ball_position_update(){
 void check_bar_ball_collision(){
     switch (ball_vel_angle)
     {
-    case ball_angle_180:
-        if (ball_pos_x - 4 <= BAR_SIZE_X + BAR_OFFSET_X){
+    case ball_angle_270:
+        if (ball_pos_x - BALL_RADIUS <= BAR_SIZE_X + BAR_OFFSET_X){
             for (int i = 0; i < NROWS; i++){
                 if ((bar_tiles[i] == 1) && (bar_tiles[i + 1] == 1) && (bar_tiles[i + 2] == 1)){
                     if ((ball_pos_y >= i*BAR_BLOCK_SIZE_Y) && (ball_pos_y < i*BAR_BLOCK_SIZE_Y + BAR_BLOCK_SIZE_Y)){
                         ball_vel_angle = ball_angle_45;
                     }
                     else if ((ball_pos_y >= i*BAR_BLOCK_SIZE_Y + BAR_BLOCK_SIZE_Y) && (ball_pos_y < i*BAR_BLOCK_SIZE_Y + 2*BAR_BLOCK_SIZE_Y)){
-                        ball_vel_angle = ball_angle_0;
+                        ball_vel_angle = ball_angle_90;
                     }
                     else if ((ball_pos_y >= i*BAR_BLOCK_SIZE_Y +  2*BAR_BLOCK_SIZE_Y) && (ball_pos_y < i*BAR_BLOCK_SIZE_Y + 3*BAR_BLOCK_SIZE_Y)){
-                        ball_vel_angle = ball_angle_315;
-                    }
-                }
-            }
-        }
-        break;
-    case ball_angle_135:
-        if (ball_pos_x - 4 <= BAR_SIZE_X + BAR_OFFSET_X){
-            for (int i = 0; i < NROWS; i++){
-                if ((bar_tiles[i] == 1) && (bar_tiles[i + 1] == 1) && (bar_tiles[i + 2] == 1)){
-                    if ((ball_pos_y >= i*BAR_BLOCK_SIZE_Y) && (ball_pos_y < i*BAR_BLOCK_SIZE_Y + BAR_BLOCK_SIZE_Y)){
-                        ball_vel_angle = ball_angle_45;
-                    }
-                    else if ((ball_pos_y >= i*BAR_BLOCK_SIZE_Y + BAR_BLOCK_SIZE_Y) && (ball_pos_y < i*BAR_BLOCK_SIZE_Y + 2*BAR_BLOCK_SIZE_Y)){
-                        ball_vel_angle = ball_angle_0;
-                    }
-                    else if ((ball_pos_y >= i*BAR_BLOCK_SIZE_Y +  2*BAR_BLOCK_SIZE_Y) && (ball_pos_y < i*BAR_BLOCK_SIZE_Y + 3*BAR_BLOCK_SIZE_Y)){
-                        ball_vel_angle = ball_angle_45;
+                        ball_vel_angle = ball_angle_135;
                     }
                 }
             }
         }
         break;
     case ball_angle_225:
-        if (ball_pos_x - 4 <= BAR_SIZE_X + BAR_OFFSET_X){
+        if (ball_pos_x - BALL_RADIUS <= BAR_SIZE_X + BAR_OFFSET_X){
             for (int i = 0; i < NROWS; i++){
                 if ((bar_tiles[i] == 1) && (bar_tiles[i + 1] == 1) && (bar_tiles[i + 2] == 1)){
                     if ((ball_pos_y >= i*BAR_BLOCK_SIZE_Y) && (ball_pos_y < i*BAR_BLOCK_SIZE_Y + BAR_BLOCK_SIZE_Y)){
-                        ball_vel_angle = ball_angle_315;
+                        ball_vel_angle = ball_angle_45;
                     }
                     else if ((ball_pos_y >= i*BAR_BLOCK_SIZE_Y + BAR_BLOCK_SIZE_Y) && (ball_pos_y < i*BAR_BLOCK_SIZE_Y + 2*BAR_BLOCK_SIZE_Y)){
-                        ball_vel_angle = ball_angle_0;
+                        ball_vel_angle = ball_angle_90;
                     }
                     else if ((ball_pos_y >= i*BAR_BLOCK_SIZE_Y +  2*BAR_BLOCK_SIZE_Y) && (ball_pos_y < i*BAR_BLOCK_SIZE_Y + 3*BAR_BLOCK_SIZE_Y)){
-                        ball_vel_angle = ball_angle_315;
+                        ball_vel_angle = ball_angle_135;
+                    }
+                }
+            }
+        }
+        break;
+    case ball_angle_315:
+        if (ball_pos_x - BALL_RADIUS <= BAR_SIZE_X + BAR_OFFSET_X){
+            for (int i = 0; i < NROWS; i++){
+                if ((bar_tiles[i] == 1) && (bar_tiles[i + 1] == 1) && (bar_tiles[i + 2] == 1)){
+                    if ((ball_pos_y >= i*BAR_BLOCK_SIZE_Y) && (ball_pos_y < i*BAR_BLOCK_SIZE_Y + BAR_BLOCK_SIZE_Y)){
+                        ball_vel_angle = ball_angle_45;
+                    }
+                    else if ((ball_pos_y >= i*BAR_BLOCK_SIZE_Y + BAR_BLOCK_SIZE_Y) && (ball_pos_y < i*BAR_BLOCK_SIZE_Y + 2*BAR_BLOCK_SIZE_Y)){
+                        ball_vel_angle = ball_angle_90;
+                    }
+                    else if ((ball_pos_y >= i*BAR_BLOCK_SIZE_Y +  2*BAR_BLOCK_SIZE_Y) && (ball_pos_y < i*BAR_BLOCK_SIZE_Y + 3*BAR_BLOCK_SIZE_Y)){
+                        ball_vel_angle = ball_angle_135;
                     }
                 }
             }
@@ -323,63 +335,112 @@ void check_bar_ball_collision(){
 }
 
 void check_edge_collision(){
-    if ((ball_pos_y - 4 == 0) && (ball_vel_angle == ball_angle_45)){
-        ball_vel_angle = ball_angle_315;
+    if ((ball_pos_y - BALL_RADIUS == 0) && (ball_vel_angle == ball_angle_45)){
+        ball_vel_angle = ball_angle_135;
     }
-    else if ((ball_pos_y - 4 == 0) && (ball_vel_angle == ball_angle_135)){
+    else if ((ball_pos_y - BALL_RADIUS == 0) && (ball_vel_angle == ball_angle_315)){
         ball_vel_angle = ball_angle_225;
     }
-    else if ((ball_pos_y + 4 == 240-BALL_SIZE) && (ball_vel_angle == ball_angle_315)){
+    else if ((ball_pos_y + BALL_RADIUS == 240-BALL_SIZE) && (ball_vel_angle == ball_angle_135)){
         ball_vel_angle = ball_angle_45;
     }
-    else if ((ball_pos_y + 4 == 240-BALL_SIZE) && (ball_vel_angle == ball_angle_225)){
-        ball_vel_angle = ball_angle_135;
+    else if ((ball_pos_y + BALL_RADIUS == 240-BALL_SIZE) && (ball_vel_angle == ball_angle_225)){
+        ball_vel_angle = ball_angle_315;
     }
 }
 
-void tile_column_check(int column){
-    if (ball_pos_x == ((170 + column*TILE_SIZE)-4)){
-        for (int i = 0; i < NROWS; i++){
-            if ((ball_pos_y >= i*TILE_SIZE) && (ball_pos_y <= i*TILE_SIZE + TILE_SIZE) && (tiles[i][column] == 1)){
-                tiles[i][column] = 0;
-                playing_field_update = 1;
-                ball_collision = 1;
+void check_tile_collision(){
+    for (int e = 0; e < NCOLS; e++){
+        if ((ball_pos_x + BALL_RADIUS > ((TILE_X_OFFSET + e*TILE_SIZE))) && (ball_pos_x - BALL_RADIUS < (TILE_X_OFFSET + e*TILE_SIZE + TILE_SIZE))){
+            for (int i = 0; i < NROWS; i++){
+                if ((ball_pos_y + BALL_RADIUS > i*TILE_SIZE) && (ball_pos_y - BALL_RADIUS <= i*TILE_SIZE + TILE_SIZE) && (tiles[i][e] == 1)){
+                    if (ball_pos_y + BALL_RADIUS == i*TILE_SIZE){
+                        ball_tile_top_collision = 1;
+                    }
+                    else if (ball_pos_y - BALL_RADIUS == i*TILE_SIZE + TILE_SIZE){
+                        ball_tile_bottom_collision = 1;
+                    }
+                    else if (ball_pos_x + BALL_RADIUS == TILE_X_OFFSET + e*TILE_SIZE){
+                        ball_collision = 1;
+                    }
+                    else if (ball_pos_x - BALL_RADIUS == TILE_X_OFFSET + e*TILE_SIZE + TILE_SIZE){
+                        ball_tile_right_collision = 1;
+                    }
+                    else{
+                        ball_collision = 1;
+                    }
+                    tiles[i][e] = 0;
+                    playing_field_update = 1;
+
+                }
             }
         }
     }
-}
-void check_tile_collision(){
-    tile_column_check(0);
-    tile_column_check(1);
-    tile_column_check(2);
-    tile_column_check(3);
-    tile_column_check(4);
-    tile_column_check(5);
-    tile_column_check(6);
-    tile_column_check(7);
-    tile_column_check(8);
-    tile_column_check(9);
     
     if (ball_collision == 1){
         switch (ball_vel_angle)
         {
-        case ball_angle_45:
-            ball_vel_angle = ball_angle_135;
-            ball_collision = 0;
+        case ball_angle_135:
+            ball_vel_angle = ball_angle_225;
             break;
         
-        case ball_angle_315:
-            ball_vel_angle = ball_angle_225;
-            ball_collision = 0;
+        case ball_angle_45:
+            ball_vel_angle = ball_angle_315;
             break;
 
-        case ball_angle_0:
-            ball_vel_angle = ball_angle_180;
-            ball_collision = 0;
+        case ball_angle_90:
+            ball_vel_angle = ball_angle_270;
             break;
         }
 
     }
+    else if (ball_tile_bottom_collision == 1){
+        switch (ball_vel_angle)
+        {
+        case ball_angle_45:
+            ball_vel_angle = ball_angle_135;
+            break;
+        
+        case ball_angle_315:
+            ball_vel_angle = ball_angle_225;
+            break;
+        default:
+            break;
+        }
+    }
+    else if (ball_tile_top_collision == 1){
+        switch (ball_vel_angle)
+        {
+        case ball_angle_135:
+            ball_vel_angle = ball_angle_45;
+            break;
+        
+        case ball_angle_225:
+            ball_vel_angle = ball_angle_315;
+            break;
+        
+        default:
+            break;
+        }
+    }
+    else if (ball_tile_right_collision == 1){
+        switch (ball_vel_angle)
+        {
+        case ball_angle_225:
+            ball_vel_angle = ball_angle_135;
+            break;
+        
+        case ball_angle_315:
+            ball_vel_angle = ball_angle_45;
+            break;
+        default:
+            break;
+        }
+    }
+    ball_collision = 0;
+    ball_tile_bottom_collision = 0;
+    ball_tile_top_collision = 0;
+    ball_tile_right_collision = 0;
 }
 
 void update_game_state()
@@ -424,6 +485,9 @@ void update_bar_state()
                 bar_position_counter -= 1;
                 update_bar = 1;
             }
+            else if (user_input == (char)(0x0a)){
+                currentState = Exit;
+            }
         }
         else {
             uart_out = 0;
@@ -453,6 +517,7 @@ void write(const char* str)
 void play()
 {
     ClearScreen();
+    write("Press w or s to move the bar \n");
     // HINT: This is the main game loop
     for (int i = 0; i < NROWS; i++){
         for (int k = 0; k < NCOLS; k++){
@@ -469,18 +534,16 @@ void play()
         }
         draw_playing_field();
         draw_ball(ball_pos_x, ball_pos_y);
-        draw_bar(bar_pos_y); // TODO: replace the constant value with the current position of the bar
+        draw_bar(bar_pos_y);
         for (int i = 0; i < GAME_SLOWDOWN_COUNTER; i++);
     }
     if (currentState == Won)
     {
         write(won);
-        while(1);
     }
     else if (currentState == Lost)
     {
         write(lost);
-        while(1);
     }
     else if (currentState == Exit)
     {
@@ -493,17 +556,26 @@ void play()
 void reset()
 {
     // Hint: This is draining the UART buffer
+    unsigned long long uart_out;
     int remaining = 0;
-    do
-    {
-        unsigned long long out = ReadUart();
-        if (!(out & 0x8000))
-        {
-            // not valid - abort reading
-            return;
+    char user_input;
+    write("Press w to play again or press s to exit\n");
+    do{
+        uart_out = ReadUart();
+        remaining = (uart_out & 0xFF0000) >> 4;
+        user_input = (char)(uart_out & 0xFF);
+        if (uart_out & 0x8000){
+            if(user_input == 'w'){
+                currentState = Running;
+            }
+            else if (user_input == 's'){
+                currentState = Exit;
+            }
         }
-        remaining = (out & 0xFF0000) >> 4;
-    } while (remaining > 0);
+        else {
+            uart_out = 0;
+        }
+    }while(currentState = Stopped);
 
     // TODO: You might want to reset other state in here
 }
@@ -529,6 +601,9 @@ int main(int argc, char *argv[])
 {
     ClearScreen();
     // HINT: This loop allows the user to restart the game after loosing/winning the previous game
+    if ((NCOLS > 18) || (NCOLS < 1)){
+        write("Unsupported number of columns");
+    }
     while (1)
     {
         wait_for_start();
