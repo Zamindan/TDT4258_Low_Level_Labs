@@ -273,7 +273,10 @@ void ball_position_update(){
         ball_pos_x -= 1;
         ball_pos_y -= 1;
         break;
+    default:
+        break;
     }
+    
 }
 
 void check_bar_ball_collision(){
@@ -330,7 +333,10 @@ void check_bar_ball_collision(){
             }
         }
         break;
+    default:
+        break;
     }
+    
     
 }
 
@@ -351,9 +357,9 @@ void check_edge_collision(){
 
 void check_tile_collision(){
     for (int e = 0; e < NCOLS; e++){
-        if ((ball_pos_x + BALL_RADIUS > ((TILE_X_OFFSET + e*TILE_SIZE))) && (ball_pos_x - BALL_RADIUS < (TILE_X_OFFSET + e*TILE_SIZE + TILE_SIZE))){
+        if ((ball_pos_x + BALL_RADIUS >= ((TILE_X_OFFSET + e*TILE_SIZE))) && (ball_pos_x - BALL_RADIUS <= (TILE_X_OFFSET + e*TILE_SIZE + TILE_SIZE))){
             for (int i = 0; i < NROWS; i++){
-                if ((ball_pos_y + BALL_RADIUS > i*TILE_SIZE) && (ball_pos_y - BALL_RADIUS <= i*TILE_SIZE + TILE_SIZE) && (tiles[i][e] == 1)){
+                if ((ball_pos_y + BALL_RADIUS >= i*TILE_SIZE) && (ball_pos_y - BALL_RADIUS <= i*TILE_SIZE + TILE_SIZE) && (tiles[i][e] == 1)){
                     if (ball_pos_y + BALL_RADIUS == i*TILE_SIZE){
                         ball_tile_top_collision = 1;
                     }
@@ -391,7 +397,10 @@ void check_tile_collision(){
         case ball_angle_90:
             ball_vel_angle = ball_angle_270;
             break;
+        default:
+            break;
         }
+        
 
     }
     else if (ball_tile_bottom_collision == 1){
