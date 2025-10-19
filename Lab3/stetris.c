@@ -1,5 +1,6 @@
 #include <stdio.h>
 #include <stdlib.h>
+#include <stdint.h>
 #include <unistd.h>
 #include <termios.h>
 #include <sys/select.h>
@@ -8,6 +9,12 @@
 #include <string.h>
 #include <time.h>
 #include <poll.h>
+#include <fcntl.h>
+#include <errno.h>
+#include <sys/mman.h>
+#include <sys/ioctl.h>
+#include <dirent.h>
+#include <linux/fb.h>
 
 // The game state can be used to detect what happens on the playfield
 #define GAMEOVER 0
@@ -58,11 +65,99 @@ gameConfig game = {
     .initNextGameTick = 50,
 };
 
+
+int fd_joystick = -1;
+int fd_fb_led_matrix = -1;
+uint16_t *fb_memory = NULL;
+#define FB_SIZE 8 * 8 * 2
+/* Change these if you wanna change colour of pixels */
+#define PIXEL_RED   (0x1F & 0x1F)
+#define PIXEL_GREEN (0x3F & 0x3F)
+#define PIXEL_BLUE  (0x1F & 0x1F)
+
 // This function is called on the start of your application
 // Here you can initialize what ever you need for your task
 // return false if something fails, else true
 bool initializeSenseHat()
 {
+    DIR *d = opendir("/dev/input");
+    if (d == NULL){ 
+        perror("Could not open dir d");
+        return false;
+    }
+    struct dirent *dir;
+    char name[256];
+    while ((dir = readdir(d)) != NULL) {
+        if (strncmp(dir->d_name, "event", 5) != 0){
+            continue;
+        }
+        char path[64];
+        snprintf(path, sizeof(path), "/dev/input/%s", dir->d_name);
+        int fd = open(path, O_RDONLY | O_NONBLOCK);
+        if (fd == -1){ 
+            continue;
+        }
+        if (ioctl(fd, EVIOCGNAME(sizeof(name)), name) == -1){
+            perror("IO control joystick error");
+            return false;
+        }
+        if (strstr(name, "Raspberry Pi Sense HAT Joystick") != NULL) {
+            fd_joystick = fd;
+            break;
+        }
+        close(fd);
+    }
+    if (closedir(d) == -1){
+        perror("Could not close dir d");
+        return false;
+    }
+    if (fd_joystick == -1){
+        perror("fd_joystick error");
+        return false;
+    }
+
+
+    d = opendir("/sys/class/graphics");
+    if (d == NULL){
+        perror("Could not open graphics directory");
+        return false;
+    }
+    while ((dir = readdir(d))) {
+        if (strncmp(dir->d_name, "fb", 2) != 0){ 
+            continue;
+        }
+
+        char path[256];
+        snprintf(path, sizeof(path), "/sys/class/graphics/%s/name", dir->d_name);
+        FILE *f = fopen(path, "r");
+        if (f == NULL){
+            continue;
+        }
+        fgets(name, sizeof(name), f);
+        fclose(f);
+        if (strstr(name, "RPi-Sense FB") != NULL) {
+            char fbpath[64];
+            snprintf(fbpath, sizeof(fbpath), "/dev/%s", dir->d_name);
+            fd_fb_led_matrix = open(fbpath, O_RDWR);
+            break;
+        }
+    }
+    if (closedir(d) == -1){
+        perror("Could not close dir d");
+        return false;
+    }
+
+    if (fd_fb_led_matrix == -1){
+        perror("fd_fb_led_matrix error");
+        return false;
+    }
+
+    fb_memory = mmap(NULL, FB_SIZE, PROT_READ | PROT_WRITE, MAP_SHARED, fd_fb_led_matrix, 0);
+    if (fb_memory == MAP_FAILED){ 
+        perror("Failed to map memory");
+        return false;
+    }
+
     return true;
 }
 
@@ -70,6 +165,9 @@ bool initializeSenseHat()
 // Here you can free up everything that you might have opened/allocated
 void freeSenseHat()
 {
+    close(fd_joystick);
+    close(fd_fb_led_matrix);
+    munmap(fb_memory, FB_SIZE);
 }
 
 // This function should return the key that corresponds to the joystick press
@@ -78,6 +176,13 @@ void freeSenseHat()
 // !!! when nothing was pressed you MUST return 0 !!!
 int readSenseHatJoystick()
 {
+    struct input_event joystick_event;
+    ssize_t n = read(fd_joystick, &joystick_event, sizeof(joystick_event));
+        if (n == (ssize_t)sizeof(joystick_event)) {
+            if (joystick_event.type == EV_KEY && (joystick_event.value == 1 || joystick_event.value == 2)) {
+                return joystick_event.code;
+            }
+        }
     return 0;
 }
 
@@ -86,7 +191,18 @@ int readSenseHatJoystick()
 // has changed the playfield
 void renderSenseHatMatrix(bool const playfieldChanged)
 {
-    (void)playfieldChanged;
+    if (playfieldChanged == false){ 
+        return;
+    }
+    for (unsigned int y = 0; y < game.grid.y; y++) {
+        for (unsigned int x = 0; x < game.grid.x; x++) {
+            uint16_t color = 0x0000;
+            if (game.playfield[y][x].occupied == true) {
+                color = (PIXEL_RED << 11) | (PIXEL_GREEN << 5) | PIXEL_BLUE;
+            }
+            fb_memory[y * 8 + x] = color;
+        }
+    }
 }
 
 // The game logic uses only the following functions to interact with the playfield.
