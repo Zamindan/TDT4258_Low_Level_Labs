@@ -70,10 +70,6 @@ int fd_joystick = -1;
 int fd_fb_led_matrix = -1;
 uint16_t *fb_memory = NULL;
 #define FB_SIZE 8 * 8 * 2
-/* Change these if you wanna change colour of pixels */
-#define PIXEL_RED   (0x1F & 0x1F)
-#define PIXEL_GREEN (0x3F & 0x3F)
-#define PIXEL_BLUE  (0x1F & 0x1F)
 
 // This function is called on the start of your application
 // Here you can initialize what ever you need for your task
@@ -198,7 +194,10 @@ void renderSenseHatMatrix(bool const playfieldChanged)
         for (unsigned int x = 0; x < game.grid.x; x++) {
             uint16_t color = 0x0000;
             if (game.playfield[y][x].occupied == true) {
-                color = (PIXEL_RED << 11) | (PIXEL_GREEN << 5) | PIXEL_BLUE;
+                uint8_t r = (x * 4) + 10 & 0x1F;
+                uint8_t g = (y * 8) + 10 & 0x3F;
+                uint8_t b = ((x + y) * 3) + 10 & 0x1F;
+                color = (r << 11) | (g << 5) | b;
             }
             fb_memory[y * 8 + x] = color;
         }
