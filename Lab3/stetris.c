@@ -157,7 +157,10 @@ bool initializeSenseHat()
     }
 
     fd_random = open("/dev/urandom", O_RDONLY);
-
+    if (fd_random == -1){
+        perror("Could not open random directory");
+        return false;
+    }
 
     return true;
 }
@@ -168,6 +171,7 @@ void freeSenseHat()
 {
     close(fd_joystick);
     close(fd_fb_led_matrix);
+    close(fd_random);
     munmap(fb_memory, FB_SIZE);
 }
 
