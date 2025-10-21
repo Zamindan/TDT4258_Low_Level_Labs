@@ -27,6 +27,7 @@
 typedef struct
 {
     bool occupied;
+    uint16_t colour;
 } tile;
 
 typedef struct
@@ -68,6 +69,7 @@ gameConfig game = {
 
 int fd_joystick = -1;
 int fd_fb_led_matrix = -1;
+int fd_random = -1;
 uint16_t *fb_memory = NULL;
 #define FB_SIZE 8 * 8 * 2
 
@@ -154,6 +156,9 @@ bool initializeSenseHat()
         return false;
     }
 
+    fd_random = open("/dev/urandom", O_RDONLY);
+
+
     return true;
 }
 
@@ -187,18 +192,15 @@ int readSenseHatJoystick()
 // has changed the playfield
 void renderSenseHatMatrix(bool const playfieldChanged)
 {
-    if (playfieldChanged == false){ 
+    if (!playfieldChanged || !fb_memory)
         return;
-    }
+
     for (unsigned int y = 0; y < game.grid.y; y++) {
         for (unsigned int x = 0; x < game.grid.x; x++) {
-            uint16_t color = 0x0000;
-            if (game.playfield[y][x].occupied == true) {
-                uint8_t r = (x * 4) + 10 & 0x1F;
-                uint8_t g = (y * 8) + 10 & 0x3F;
-                uint8_t b = ((x + y) * 3) + 10 & 0x1F;
-                color = (r << 11) | (g << 5) | b;
-            }
+            uint16_t color = 0x0000; // black background
+            if (game.playfield[y][x].occupied)
+                color = game.playfield[y][x].colour;
+
             fb_memory[y * 8 + x] = color;
         }
     }
@@ -211,6 +213,18 @@ void renderSenseHatMatrix(bool const playfieldChanged)
 static inline void newTile(coord const target)
 {
     game.playfield[target.y][target.x].occupied = true;
+
+    uint8_t random_bytes[3];
+    if (read(fd_random, random_bytes, 3) != 3) {
+        perror("Failed to read from /dev/urandom");
+        return;
+    }
+
+    uint8_t r = random_bytes[0] & 0x1F; // 5 bits
+    uint8_t g = random_bytes[1] & 0x3F; // 6 bits
+    uint8_t b = random_bytes[2] & 0x1F; // 5 bits
+
+    game.playfield[target.y][target.x].colour = (r << 11) | (g << 5) | b;
 }
 
 static inline void copyTile(coord const to, coord const from)
