@@ -79,12 +79,16 @@ uint16_t *fb_memory = NULL;
 bool initializeSenseHat()
 {
     DIR *d = opendir("/dev/input");
+
     if (d == NULL){ 
         perror("Could not open dir d");
         return false;
     }
+
     struct dirent *dir;
+
     char name[256];
+
     while ((dir = readdir(d)) != NULL) {
         if (strncmp(dir->d_name, "event", 5) != 0){
             continue;
@@ -126,8 +130,11 @@ bool initializeSenseHat()
         }
 
         char path[256];
+
         snprintf(path, sizeof(path), "/sys/class/graphics/%s/name", dir->d_name);
+
         FILE *f = fopen(path, "r");
+
         if (f == NULL){
             continue;
         }
@@ -196,7 +203,7 @@ int readSenseHatJoystick()
 // has changed the playfield
 void renderSenseHatMatrix(bool const playfieldChanged)
 {
-    if (!playfieldChanged || !fb_memory)
+    if (!playfieldChanged)
         return;
 
     for (unsigned int y = 0; y < game.grid.y; y++) {
